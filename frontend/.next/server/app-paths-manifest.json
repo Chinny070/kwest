@@ -1,0 +1,10 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/auth/page": "app/auth/page.js",
+  "/tasks/new/page": "app/tasks/new/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/tasks/page": "app/tasks/page.js",
+  "/validate/page": "app/validate/page.js",
+  "/claim/page": "app/claim/page.js",
+  "/profile/page": "app/profile/page.js"
+}

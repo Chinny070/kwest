@@ -24,7 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           accentColor: "#f59e0b",
           logo: "/logo.svg",
           landingHeader: "Welcome to Kwest",
-          loginMessage: "Sign in to start completing quests and earning USDC rewards.",
+        
         },
         defaultChain: baseSepolia,
         supportedChains: [baseSepolia],

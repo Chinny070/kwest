@@ -48,9 +48,9 @@ export function Sidebar() {
         <Link href="/dashboard" className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
-            <Swords size={16} className="text-slate-950" />
+            <img src="/logo.webp" alt="Kwest" className="h-8 w-auto" />
           </div>
-          <span className="font-display text-xl text-white">Kwest</span>
+          
         </Link>
         <p className="text-xs text-slate-500 mt-1 ml-0.5">Base Sepolia Testnet</p>
       </div>

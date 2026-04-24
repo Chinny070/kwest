@@ -22,7 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#f59e0b",
-          logo: "/logo.svg",
+          logo: "/logo.webp",
           landingHeader: "Welcome to Kwest",
         
         },

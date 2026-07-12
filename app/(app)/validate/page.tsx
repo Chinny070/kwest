@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/kwest/auth";
+import { useWalletProvider } from "@/lib/kwest/useWalletProvider";
 import {
   fetchAllTasks, fetchTaskSubmissions, getKwestCoreWrite, formatUsdc,
   SUBMISSION_STATUSES, PROOF_TYPES, type TaskData, type SubmissionData,
 } from "@/lib/kwest/contracts";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import ProofDisplay from "@/components/ui/ProofDisplay";
 import { toast } from "sonner";
 import { Shield, CheckCircle, XCircle, Loader2, Users } from "lucide-react";
 import Link from "next/link";
@@ -20,6 +22,7 @@ interface TaskWithSubmissions {
 
 export default function ValidatePage() {
   const { address } = useAuth();
+  const { getProvider } = useWalletProvider();
   const [data, setData] = useState<TaskWithSubmissions[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -53,14 +56,14 @@ export default function ValidatePage() {
   async function handleApprove(submissionId: string) {
     setActionLoading(submissionId);
     try {
-      const contract = await getKwestCoreWrite();
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       const tx = await contract.approveSubmission(submissionId);
       await tx.wait();
       toast.success("Submission approved!");
       loadData();
     } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err.message?.slice(0, 100) || "Failed");
+      toast.error((e as Error).message?.slice(0, 100) || "Failed");
     } finally {
       setActionLoading(null);
     }
@@ -69,14 +72,14 @@ export default function ValidatePage() {
   async function handleReject(submissionId: string) {
     setActionLoading(submissionId);
     try {
-      const contract = await getKwestCoreWrite();
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       const tx = await contract.rejectSubmission(submissionId);
       await tx.wait();
       toast.success("Submission rejected");
       loadData();
     } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err.message?.slice(0, 100) || "Failed");
+      toast.error((e as Error).message?.slice(0, 100) || "Failed");
     } finally {
       setActionLoading(null);
     }
@@ -117,7 +120,7 @@ export default function ValidatePage() {
 
       {data.map(({ task, submissions }) => (
         <Card key={task.id} className="p-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
             <div>
               <Link href={`/quest/${task.id}`} className="font-semibold text-white hover:text-blue-400">
                 {task.title}
@@ -149,7 +152,9 @@ export default function ValidatePage() {
                     {SUBMISSION_STATUSES[sub.status]}
                   </span>
                 </div>
-                <p className="text-sm text-slate-300 break-all mb-3">{sub.proofData}</p>
+                <div className="mb-3">
+                  <ProofDisplay data={sub.proofData} />
+                </div>
                 {sub.status === 0 && (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => handleApprove(sub.id)} disabled={actionLoading === sub.id}>

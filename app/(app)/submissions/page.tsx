@@ -8,6 +8,7 @@ import {
 } from "@/lib/kwest/contracts";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import ProofDisplay from "@/components/ui/ProofDisplay";
 import Link from "next/link";
 import { FileText, Clock, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
@@ -81,7 +82,7 @@ export default function MySubmissionsPage() {
         <div className="space-y-3">
           {submissions.map((sub) => (
             <Card key={sub.id} className="p-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <Link href={`/quest/${sub.taskId}`} className="font-medium text-white hover:text-blue-400 transition-colors">
                     {sub.taskTitle}

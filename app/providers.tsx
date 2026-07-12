@@ -1,14 +1,20 @@
 "use client";
 
-import { ReactNode } from "react";
-import { AuthProvider } from "@/lib/kwest/auth";
-import { Toaster } from "sonner";
+import { ReactNode, useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+
+const PrivyWrapper = dynamic(() => import("./privy-wrapper"), { ssr: false });
 
 export function Providers({ children }: { children: ReactNode }) {
-  return (
-    <AuthProvider>
-      {children}
-      <Toaster theme="dark" position="bottom-right" />
-    </AuthProvider>
-  );
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return <>{children}</>;
+  }
+
+  return <PrivyWrapper>{children}</PrivyWrapper>;
 }

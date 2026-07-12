@@ -2,15 +2,18 @@
 
 import { useState, useEffect, use } from "react";
 import { useAuth } from "@/lib/kwest/auth";
+import { useWalletProvider } from "@/lib/kwest/useWalletProvider";
 import {
   fetchTask, fetchTaskSubmissions, fetchUserSubmission,
   getKwestCoreWrite, formatUsdc, PROOF_TYPES, TASK_STATUSES,
   SUBMISSION_STATUSES, type TaskData, type SubmissionData,
 } from "@/lib/kwest/contracts";
+import { uploadToPinata } from "@/lib/kwest/pinata";
 import Button from "@/components/ui/Button";
 import Textarea from "@/components/ui/Textarea";
-import Input from "@/components/ui/Input";
 import Card from "@/components/ui/Card";
+import ImageUpload from "@/components/ui/ImageUpload";
+import ProofDisplay from "@/components/ui/ProofDisplay";
 import { toast } from "sonner";
 import { ArrowLeft, Clock, Users, Coins, User, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -19,10 +22,12 @@ import { shortenAddress } from "@/lib/utils/format";
 export default function QuestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { address } = useAuth();
+  const { getProvider } = useWalletProvider();
   const [task, setTask] = useState<TaskData | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
   const [mySubmission, setMySubmission] = useState<SubmissionData | null>(null);
-  const [proofData, setProofData] = useState("");
+  const [proofText, setProofText] = useState("");
+  const [proofImages, setProofImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -46,33 +51,44 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
         setSubmissions(subs);
       }
     } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err.message?.slice(0, 100) || "Failed to load quest");
+      toast.error((e as Error).message?.slice(0, 100) || "Failed to load quest");
     } finally { setLoading(false); }
   }
 
   async function handleSubmitProof() {
     if (!address) return toast.error("Connect wallet first");
-    if (!proofData.trim()) return toast.error("Enter your proof");
+    if (!proofText.trim() && proofImages.length === 0) return toast.error("Enter proof text or upload images");
     setSubmitting(true);
     try {
-      const contract = await getKwestCoreWrite();
-      const tx = await contract.submitProof(taskId, proofData);
+      let imageHashes: string[] = [];
+      if (proofImages.length > 0) {
+        toast.info("Uploading images to IPFS...");
+        imageHashes = await Promise.all(proofImages.map((f) => uploadToPinata(f)));
+      }
+
+      const proofData = imageHashes.length > 0
+        ? JSON.stringify({ text: proofText.trim() || undefined, images: imageHashes })
+        : proofText.trim();
+
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       toast.info("Submitting proof...");
+      const tx = await contract.submitProof(taskId, proofData);
       await tx.wait();
       toast.success("Proof submitted!");
-      setProofData("");
+      setProofText("");
+      setProofImages([]);
       loadData();
     } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err.message?.slice(0, 100) || "Submission failed");
+      toast.error((e as Error).message?.slice(0, 100) || "Submission failed");
     } finally { setSubmitting(false); }
   }
 
   async function handleApprove(submissionId: string) {
     setActionLoading(submissionId);
     try {
-      const contract = await getKwestCoreWrite();
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       const tx = await contract.approveSubmission(submissionId);
       await tx.wait();
       toast.success("Submission approved!");
@@ -84,7 +100,8 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
   async function handleReject(submissionId: string) {
     setActionLoading(submissionId);
     try {
-      const contract = await getKwestCoreWrite();
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       const tx = await contract.rejectSubmission(submissionId);
       await tx.wait();
       toast.success("Submission rejected");
@@ -106,19 +123,19 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
         <ArrowLeft className="w-4 h-4" /> Back to Quests
       </Link>
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">{task.title}</h1>
           <p className="text-sm text-slate-500">Quest #{task.id} by {shortenAddress(task.creator)}</p>
         </div>
-        <span className={`inline-flex items-center font-mono text-xs px-3 py-1 rounded-full border ${
+        <span className={`inline-flex items-center font-mono text-xs px-3 py-1 rounded-full border self-start ${
           task.status === 0 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
             : task.status === 1 ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
             : "bg-red-500/20 text-red-400 border-red-500/30"
         }`}>{TASK_STATUSES[task.status]}</span>
       </div>
 
-      <Card className="p-6">
+      <Card className="p-5 sm:p-6">
         <p className="text-slate-300 mb-6 leading-relaxed">{task.description}</p>
         {task.requirements && (
           <div className="mb-6">
@@ -126,7 +143,7 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
             <p className="text-sm text-slate-300 bg-slate-900/50 p-3 rounded-lg">{task.requirements}</p>
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-slate-900/50 p-3 rounded-lg">
             <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1"><Coins className="w-3.5 h-3.5" /> Reward Pool</div>
             <p className="font-semibold text-white">{formatUsdc(task.rewardPool)} USDC</p>
@@ -146,7 +163,7 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
             </p>
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-4 text-sm text-slate-500">
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-slate-500">
           <span>Proof: <span className="text-slate-300">{PROOF_TYPES[task.proofType]}</span></span>
           <span>Approved: <span className="text-slate-300">{Number(task.approvedCount)}</span></span>
           <span>Submitted: <span className="text-slate-300">{Number(task.filledSlots)}</span></span>
@@ -157,7 +174,7 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
         <Card className="p-5">
           <h3 className="text-sm font-medium text-slate-400 mb-3">Your Submission</h3>
           <div className="bg-slate-900/50 rounded-lg p-3 mb-3">
-            <p className="text-sm text-slate-300 break-all">{mySubmission.proofData}</p>
+            <ProofDisplay data={mySubmission.proofData} />
           </div>
           <div className="flex items-center gap-3">
             <span className={`inline-flex items-center font-mono text-xs px-2 py-0.5 rounded-full border ${
@@ -172,22 +189,21 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
       )}
 
       {canSubmit && (
-        <Card className="p-6">
+        <Card className="p-5 sm:p-6">
           <h3 className="font-semibold text-white mb-3">Submit Your Proof</h3>
-          <p className="text-sm text-slate-400 mb-4">Submit {PROOF_TYPES[task.proofType].toLowerCase()} proof to complete this quest.</p>
-          {task.proofType === 0 ? (
-            <Textarea value={proofData} onChange={(e) => setProofData(e.target.value)} placeholder="Enter your proof text..." />
-          ) : (
-            <Input value={proofData} onChange={(e) => setProofData(e.target.value)} placeholder={task.proofType === 2 ? "QmYour...IPFSHash" : "https://..."} />
-          )}
-          <Button onClick={handleSubmitProof} disabled={submitting} className="mt-4 w-full">
-            {submitting ? "Submitting..." : "Submit Proof"}
-          </Button>
+          <p className="text-sm text-slate-400 mb-4">Submit proof to complete this quest. You can include text, links, and images.</p>
+          <div className="space-y-4">
+            <Textarea value={proofText} onChange={(e) => setProofText(e.target.value)} placeholder="Enter your proof text or paste links..." />
+            <ImageUpload files={proofImages} onChange={setProofImages} />
+            <Button onClick={handleSubmitProof} disabled={submitting} className="w-full">
+              {submitting ? "Submitting..." : "Submit Proof"}
+            </Button>
+          </div>
         </Card>
       )}
 
       {isCreator && submissions.length > 0 && (
-        <Card className="p-6">
+        <Card className="p-5 sm:p-6">
           <h3 className="font-semibold text-white mb-4">Submissions ({submissions.length})</h3>
           <div className="space-y-3">
             {submissions.map((sub) => (
@@ -200,7 +216,9 @@ export default function QuestDetailPage({ params }: { params: Promise<{ id: stri
                       : "bg-amber-500/20 text-amber-400 border-amber-500/30"
                   }`}>{SUBMISSION_STATUSES[sub.status]}</span>
                 </div>
-                <p className="text-sm text-slate-300 break-all mb-3">{sub.proofData}</p>
+                <div className="mb-3">
+                  <ProofDisplay data={sub.proofData} />
+                </div>
                 {sub.status === 0 && (
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => handleApprove(sub.id)} disabled={actionLoading === sub.id}>

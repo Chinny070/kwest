@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" fill="none">
-  <!-- Stylized K with purple accent -->
-  <polygon points="5,5 15,5 15,20 28,5 40,5 24,23 42,45 30,45 15,27 15,45 5,45" fill="#a855f7"/>
-  <!-- "west" text -->
-  <text x="48" y="37" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="#fef3c7" letter-spacing="-0.5">west</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 72" width="300" height="72">
+  <g transform="translate(4,6)">
+    <path d="M0 58 L0 2 L15 2 L15 23 L36 2 L55 2 L30 29 L57 58 L38 58 L17 35 L15 37 L15 58 Z" fill="#f0ece0"/>
+    <path d="M3 6 L3 23 L12 6 Z" fill="#7c3aed"/>
+    <text x="60" y="56" font-family="Arial Black, Impact, Helvetica, sans-serif" font-size="58" font-weight="900" fill="#f0ece0" letter-spacing="-1">west</text>
+  </g>
 </svg>

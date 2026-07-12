@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/kwest/auth";
+import { useWalletProvider } from "@/lib/kwest/useWalletProvider";
 import {
   fetchAllTasks, fetchUserSubmission, getKwestCoreWrite, formatUsdc,
-  type SubmissionData,
 } from "@/lib/kwest/contracts";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -23,6 +23,7 @@ interface ClaimableItem {
 
 export default function ClaimRewardsPage() {
   const { address } = useAuth();
+  const { getProvider } = useWalletProvider();
   const [claims, setClaims] = useState<ClaimableItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [claimLoading, setClaimLoading] = useState<string | null>(null);
@@ -60,15 +61,15 @@ export default function ClaimRewardsPage() {
   async function handleClaim(submissionId: string) {
     setClaimLoading(submissionId);
     try {
-      const contract = await getKwestCoreWrite();
-      const tx = await contract.claimReward(submissionId);
+      const walletProvider = await getProvider();
+      const contract = await getKwestCoreWrite(walletProvider);
       toast.info("Claiming reward...");
+      const tx = await contract.claimReward(submissionId);
       await tx.wait();
       toast.success("Reward claimed!");
       loadClaims();
     } catch (e: unknown) {
-      const err = e as Error;
-      toast.error(err.message?.slice(0, 100) || "Claim failed");
+      toast.error((e as Error).message?.slice(0, 100) || "Claim failed");
     } finally {
       setClaimLoading(null);
     }
@@ -118,7 +119,7 @@ export default function ClaimRewardsPage() {
       <div className="grid gap-3">
         {claims.map((claim) => (
           <Card key={claim.submissionId} className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <Link href={`/quest/${claim.taskId}`} className="font-medium text-white hover:text-blue-400">
                   {claim.taskTitle}

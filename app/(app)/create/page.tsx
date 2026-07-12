@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useAuth } from "@/lib/kwest/auth";
+import { useWalletProvider } from "@/lib/kwest/useWalletProvider";
 import { getKwestCoreWrite, ensureUsdcApproval, parseUsdc, PLATFORM_FEE_BPS } from "@/lib/kwest/contracts";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -15,6 +16,7 @@ import { useRouter } from "next/navigation";
 
 export default function CreateTaskPage() {
   const { address } = useAuth();
+  const { getProvider } = useWalletProvider();
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -47,11 +49,13 @@ export default function CreateTaskPage() {
       const slots = parseInt(totalSlots);
       const deadline = Math.floor(Date.now() / 1000) + parseInt(deadlineDays) * 86400;
 
+      const walletProvider = await getProvider();
+
       toast.info("Approving USDC spend...");
-      await ensureUsdcApproval(totalAmount);
+      await ensureUsdcApproval(walletProvider, totalAmount);
 
       toast.info("Creating quest...");
-      const contract = await getKwestCoreWrite();
+      const contract = await getKwestCoreWrite(walletProvider);
       const tx = await contract.createTask(title, description, parseInt(proofType), requirements, poolAmount, slots, deadline);
       await tx.wait();
       toast.success("Quest created!");
@@ -69,7 +73,7 @@ export default function CreateTaskPage() {
       <h1 className="text-2xl font-bold text-white">Create a Quest</h1>
       <p className="text-slate-400">Post a task with USDC rewards. Funds are locked until you approve participants.</p>
 
-      <Card className="p-6 space-y-4">
+      <Card className="p-5 sm:p-6 space-y-4">
         <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Write a thread about Base" />
         <Textarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe what needs to be done..." />
         <Textarea label="Requirements (optional)" value={requirements} onChange={(e) => setRequirements(e.target.value)} placeholder="Specific requirements participants must meet..." />
@@ -78,7 +82,7 @@ export default function CreateTaskPage() {
           { value: "1", label: "Link / URL" },
           { value: "2", label: "IPFS Hash (screenshot)" },
         ]} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Reward Pool (USDC)" type="number" step="1" min="1" value={rewardPool} onChange={(e) => setRewardPool(e.target.value)} placeholder="100" />
           <Input label="Total Slots" type="number" min="1" value={totalSlots} onChange={(e) => setTotalSlots(e.target.value)} placeholder="10" />
         </div>

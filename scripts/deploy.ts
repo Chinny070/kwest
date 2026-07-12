@@ -1,4 +1,6 @@
-import { ethers } from "hardhat";
+import "dotenv/config";
+import pkg from "hardhat";
+const { ethers } = pkg;
 
 // Base Sepolia USDC address (Circle's official testnet USDC)
 const USDC_BASE_SEPOLIA = process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";

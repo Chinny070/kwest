@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
 
-const BASE_SEPOLIA_CHAIN_ID = 84532;
 const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 
 const KWEST_CORE_ADDRESS = process.env.NEXT_PUBLIC_KWEST_CORE_ADDRESS || "";
@@ -40,49 +39,12 @@ function getProvider(): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC);
 }
 
-async function getBrowserProvider(): Promise<ethers.BrowserProvider> {
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("No wallet available");
-  }
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const network = await provider.getNetwork();
-  if (Number(network.chainId) !== BASE_SEPOLIA_CHAIN_ID) {
-    await switchToBaseSepolia();
-  }
-  return provider;
-}
-
-async function switchToBaseSepolia() {
-  if (!window.ethereum) return;
-  const chainIdHex = "0x" + BASE_SEPOLIA_CHAIN_ID.toString(16);
-  try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: chainIdHex }],
-    });
-  } catch (e: unknown) {
-    const err = e as { code?: number };
-    if (err.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [{
-          chainId: chainIdHex,
-          chainName: "Base Sepolia",
-          rpcUrls: [BASE_SEPOLIA_RPC],
-          nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-          blockExplorerUrls: ["https://sepolia.basescan.org"],
-        }],
-      });
-    }
-  }
-}
-
 export function getKwestCoreRead() {
   return new ethers.Contract(KWEST_CORE_ADDRESS, KWEST_CORE_ABI, getProvider());
 }
 
-export async function getKwestCoreWrite() {
-  const provider = await getBrowserProvider();
+export async function getKwestCoreWrite(walletProvider: ethers.Eip1193Provider) {
+  const provider = new ethers.BrowserProvider(walletProvider);
   const signer = await provider.getSigner();
   return new ethers.Contract(KWEST_CORE_ADDRESS, KWEST_CORE_ABI, signer);
 }
@@ -91,10 +53,16 @@ export function getUsdcRead() {
   return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, getProvider());
 }
 
-export async function getUsdcWrite() {
-  const provider = await getBrowserProvider();
+export async function getUsdcWrite(walletProvider: ethers.Eip1193Provider) {
+  const provider = new ethers.BrowserProvider(walletProvider);
   const signer = await provider.getSigner();
   return new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+}
+
+export async function getSignerAddress(walletProvider: ethers.Eip1193Provider): Promise<string> {
+  const provider = new ethers.BrowserProvider(walletProvider);
+  const signer = await provider.getSigner();
+  return signer.getAddress();
 }
 
 export interface TaskData {
@@ -192,11 +160,9 @@ export async function fetchUserSubmission(taskId: number, userAddress: string): 
   };
 }
 
-export async function ensureUsdcApproval(amount: bigint): Promise<void> {
-  const usdc = await getUsdcWrite();
-  const provider = await getBrowserProvider();
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
+export async function ensureUsdcApproval(walletProvider: ethers.Eip1193Provider, amount: bigint): Promise<void> {
+  const usdc = await getUsdcWrite(walletProvider);
+  const address = await getSignerAddress(walletProvider);
   const allowance = await usdc.allowance(address, KWEST_CORE_ADDRESS);
   if (allowance < amount) {
     const tx = await usdc.approve(KWEST_CORE_ADDRESS, amount);

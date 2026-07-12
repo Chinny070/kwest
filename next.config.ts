@@ -1,0 +1,18 @@
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  serverExternalPackages: ["viem"],
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      "@stripe/crypto": false,
+      "@farcaster/mini-app-solana": false,
+    };
+    return config;
+  },
+};
+
+export default nextConfig;

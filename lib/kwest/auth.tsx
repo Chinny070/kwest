@@ -1,111 +1,59 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { createContext, useContext, ReactNode, useMemo, useEffect, useState } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 
 interface AuthContextType {
   address: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: () => Promise<void>;
-  logout: () => void;
+  login: () => void;
+  logout: () => Promise<void>;
+  getProvider: () => Promise<unknown>;
+  userLabel: string | null;
 }
 
 const AuthContext = createContext<AuthContextType>({
   address: null,
   isAuthenticated: false,
   isLoading: true,
-  login: async () => {},
-  logout: () => {},
+  login: () => {},
+  logout: async () => {},
+  getProvider: async () => null,
+  userLabel: null,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { wallets } = useWallets();
 
-  useEffect(() => {
-    checkConnection();
-    if (window.ethereum) {
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
-      window.ethereum.on("chainChanged", () => window.location.reload());
-    }
-    return () => {
-      if (window.ethereum?.removeListener) {
-        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
-      }
-    };
-  }, []);
+  const activeWallet = wallets.find((w) => w.walletClientType !== "privy") || wallets[0];
+  const address = activeWallet?.address ?? null;
 
-  function handleAccountsChanged(accounts: unknown) {
-    if (!Array.isArray(accounts)) return;
-    if (accounts.length === 0) {
-      setAddress(null);
-    } else {
-      setAddress(accounts[0]);
-    }
-  }
+  const userLabel = useMemo(() => {
+    if (user?.email?.address) return user.email.address;
+    if (address) return address;
+    return null;
+  }, [user, address]);
 
-  async function checkConnection() {
-    try {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
-        if (accounts && accounts.length > 0) {
-          setAddress(accounts[0]);
-          await switchToBaseSepolia();
-        }
-      }
-    } catch {}
-    setIsLoading(false);
-  }
-
-  async function switchToBaseSepolia() {
-    if (!window.ethereum) return;
-    const chainIdHex = "0x14a34";
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: chainIdHex }],
-      });
-    } catch (e: unknown) {
-      const err = e as { code?: number };
-      if (err.code === 4902) {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [{
-            chainId: chainIdHex,
-            chainName: "Base Sepolia",
-            rpcUrls: ["https://sepolia.base.org"],
-            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-            blockExplorerUrls: ["https://sepolia.basescan.org"],
-          }],
-        });
-      }
-    }
-  }
-
-  const login = useCallback(async () => {
-    if (!window.ethereum) {
-      window.open("https://metamask.io/download/", "_blank");
-      return;
-    }
-    try {
-      setIsLoading(true);
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }) as string[];
-      if (accounts.length > 0) {
-        setAddress(accounts[0]);
-        await switchToBaseSepolia();
-      }
-    } catch {} finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const logout = useCallback(() => {
-    setAddress(null);
-  }, []);
+  const getProvider = async () => {
+    if (!activeWallet) throw new Error("No wallet connected");
+    await activeWallet.switchChain(84532);
+    return await activeWallet.getEthereumProvider();
+  };
 
   return (
-    <AuthContext.Provider value={{ address, isAuthenticated: !!address, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        address,
+        isAuthenticated: ready && authenticated,
+        isLoading: !ready,
+        login,
+        logout,
+        getProvider,
+        userLabel,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -116,21 +64,35 @@ export function useAuth() {
 }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname();
+  const { isAuthenticated, isLoading, login } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/");
-    }
-  }, [isAuthenticated, isLoading, router, pathname]);
+    setMounted(true);
+  }, []);
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">Loading...</div>;
+  if (!mounted || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        Loading...
+      </div>
+    );
   }
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 gap-6">
+        <img src="/kwest-logo.png" alt="Kwest" className="h-12 w-auto" />
+        <p className="text-slate-400">Sign in to access Kwest</p>
+        <button
+          onClick={login}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium transition-colors cursor-pointer"
+        >
+          Sign In
+        </button>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
